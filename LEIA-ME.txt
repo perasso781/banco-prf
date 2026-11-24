@@ -1,0 +1,26 @@
+BANCO DE QUESTÕES PRF — versão independente
+
+Arquivos desta pasta:
+  index.html               o app
+  questoes.json            as 3.883 questões
+  progresso-inicial.json   suas respostas até 23/11/2026 (carregado só na 1ª vez em cada aparelho)
+  manifest.webmanifest, sw.js, icon-*.png   para instalar como app e funcionar offline
+
+PUBLICAR NO GITHUB PAGES (grátis, link fixo, funciona no celular)
+  1. Crie um repositório no GitHub (ex.: banco-prf). Pode ser público; se preferir privado, o Pages exige plano pago.
+  2. Envie todos os arquivos desta pasta para a raiz do repositório (Add file > Upload files).
+  3. Settings > Pages > Source: "Deploy from a branch" > Branch: main / (root) > Save.
+  4. Em 1–2 minutos o app fica em https://SEU-USUARIO.github.io/banco-prf/
+  5. No celular, abra o link no Chrome e toque em "Adicionar à tela inicial". Depois da 1ª abertura funciona até sem internet.
+
+ONDE FICA O SEU PROGRESSO
+  - Fica salvo no navegador de cada aparelho.
+  - Aba Backup > "Baixar backup" gera um arquivo .json. Guarde no Drive ou no e-mail.
+  - Para passar para outro aparelho ou recuperar: aba Backup > "Restaurar backup".
+  - Limpar os dados do navegador apaga o progresso daquele aparelho, então mantenha um backup recente.
+
+ADICIONAR QUESTÕES NOVAS
+  Substitua o questoes.json do repositório pela versão nova. O progresso não é afetado, porque as respostas são ligadas ao id de cada questão.
+
+VERSÃO DE ARQUIVO ÚNICO
+  banco-prf-offline.html tem tudo dentro de um arquivo só. Abra no navegador do computador (Chrome/Edge) com dois cliques. Não precisa de internet nem de hospedagem.
