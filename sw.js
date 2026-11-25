@@ -1,5 +1,5 @@
-const C='banco-prf-v1';
-const F=['./','index.html','questoes.json','manifest.webmanifest','icon-192.png','icon-512.png'];
+const C='banco-prf-v3';
+const F=['./','index.html','resumos.html','questoes.json','manifest.webmanifest','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))));self.clients.claim()});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;

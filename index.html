@@ -15,7 +15,8 @@
 body{margin:0;background:var(--bg);color:var(--tx);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:84px}
 main{max-width:680px;margin:0 auto;padding:16px}
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
-nav button{flex:1;border:0;background:none;color:var(--mu);padding:14px 2px;font:600 14px system-ui,sans-serif}
+nav button,nav a{flex:1 1 auto;border:0;background:none;color:var(--mu);padding:14px 1px;font:600 13px system-ui,sans-serif;text-align:center;text-decoration:none;white-space:nowrap}
+@media (max-width:360px){nav button,nav a{font-size:12px}}
 nav button.on{color:var(--ac)}
 button:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -132,11 +133,11 @@ h3{margin:26px 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercas
 .note{font-size:12.5px;color:var(--mu);margin:2px 4px 0}
 </style>
 <main id="app"></main>
-<nav><button data-m="p">Praticar</button><button data-m="s">Desempenho</button><button data-m="a">Backup</button><button data-m="b">Banco</button></nav>
+<nav><button data-m="p">Praticar</button><button data-m="s">Desempenho</button><a href="resumos.html">Resumos</a><button data-m="a">Backup</button><button data-m="b">Banco</button></nav>
 <script>
 const LK='bq-v1';
 const ORDER=['Direito Constitucional','Direito Administrativo','Direito Penal','Direito Processual Penal','Legislação Penal Especial','Legislação de Trânsito','Direitos Humanos','Ética e Cidadania','Informática','Geopolítica'];
-let S={qs:[],res:{},log:{}},mode='p',filt='todas',mat='todas',Q=[],i=0,pick=null,shown=false,confirmReset=false,msg='',matOpen=false,openM=null,openD=null;
+let S={qs:[],res:{},log:{},err:{}},mode='p',filt='todas',mat='todas',Q=[],i=0,pick=null,shown=false,confirmReset=false,msg='',matOpen=false,openM=null,openD=null;
 let timer=null;
 const $=s=>document.querySelector(s);
 const esc=s=>{const d=document.createElement('div');d.textContent=s??'';return d.innerHTML};
@@ -146,7 +147,7 @@ const pct=(ok,n)=>n?Math.round(ok*100/n):0;
 const cls=p=>p>=70?'g':p>=50?'w':'r';
 
 const PK='prf-progresso-v1';let lastBk=0;
-function progObj(){return {app:'banco-prf',v:1,res:S.res,log:S.log,extra:S.qs.filter(q=>q.x),bk:lastBk,ts:Date.now()}}
+function progObj(){return {app:'banco-prf',v:1,res:S.res,log:S.log,err:S.err,extra:S.qs.filter(q=>q.x),bk:lastBk,ts:Date.now()}}
 function save(){clearTimeout(timer);timer=setTimeout(()=>{try{localStorage.setItem(PK,JSON.stringify(progObj()))}catch(e){msg='Não consegui salvar no navegador. Baixe um backup.'}},150)}
 function downloadBackup(){
   lastBk=Date.now();const j=JSON.stringify(progObj());
@@ -159,7 +160,10 @@ function applyProg(p,merge){
   if(merge){
     for(const [id,r] of Object.entries(p.res)){const cur=S.res[id];if(!cur||(r.d||0)>(cur.d||0))S.res[id]=r}
     for(const [k,d] of Object.entries(p.log||{})){if(!S.log[k]||d.n>S.log[k].n)S.log[k]=d}
-  }else{S.res=p.res;S.log=p.log||{}}
+    for(const [id,e] of Object.entries(p.err||{})){const c=S.err[id];if(!c||(e.d||0)>(c.d||0))S.err[id]=e}
+  }else{S.res=p.res;S.log=p.log||{};S.err=p.err&&typeof p.err==='object'?p.err:{}}
+  // backups antigos não têm caderno: entram as que estavam erradas
+  if(!p.err)for(const [id,r] of Object.entries(p.res)){if(r&&!r.ok&&!S.err[id])S.err[id]={n:1,d:r.d||0}}
   const have=new Set(S.qs.map(q=>q.id));(p.extra||[]).forEach(q=>{if(!have.has(q.id))S.qs.push({...q,x:1})});
 }
 function matOf(q){const t=((q.tag||'').split('·')[0]||'').trim();return t==='Penal'?'Direito Penal':(t||'Outras')}
@@ -180,21 +184,24 @@ function matBar(){
   return h;
 }
 function buildQ(){
-  Q=S.qs.filter(inMat).filter(q=>filt==='todas'||(filt==='novas'?!S.res[q.id]:(S.res[q.id]&&!S.res[q.id].ok))).map(q=>q.id);
+  if(filt==='cad'){
+    Q=S.qs.filter(inMat).filter(q=>S.err[q.id]).sort((a,b)=>{const x=S.err[a.id],y=S.err[b.id];return (y.n||0)-(x.n||0)||(y.d||0)-(x.d||0)}).map(q=>q.id);
+  }else Q=S.qs.filter(inMat).filter(q=>filt==='todas'||(filt==='novas'?!S.res[q.id]:(S.res[q.id]&&!S.res[q.id].ok))).map(q=>q.id);
   i=0;pick=null;shown=false;
 }
 function stats(){
-  const L=S.qs.filter(inMat);let ok=0,no=0;L.forEach(q=>{const r=S.res[q.id];if(r){r.ok?ok++:no++}});
-  return {ok,no,nw:L.length-ok-no};
+  const L=S.qs.filter(inMat);let ok=0,no=0,cad=0;L.forEach(q=>{const r=S.res[q.id];if(r){r.ok?ok++:no++}if(S.err[q.id])cad++});
+  return {ok,no,nw:L.length-ok-no,cad};
 }
 const byId=id=>S.qs.find(q=>q.id===id);
 
 function viewP(){
   const st=stats();
-  let h=matBar()+`<div class="row" style="margin-top:10px">`+[['todas','Todas ('+(st.ok+st.no+st.nw)+')'],['novas','Novas ('+st.nw+')'],['erros','Só erros ('+st.no+')']].map(([k,l])=>`<button class="chip ${filt===k?'on':''}" data-f="${k}">${l}</button>`).join('')+`</div>`;
+  let h=matBar()+`<div class="row" style="margin-top:10px">`+[['todas','Todas ('+(st.ok+st.no+st.nw)+')'],['novas','Novas ('+st.nw+')'],['erros','Só erros ('+st.no+')'],['cad','📒 Caderno de erros ('+st.cad+')']].map(([k,l])=>`<button class="chip ${filt===k?'on':''}" data-f="${k}">${l}</button>`).join('')+`</div>`;
   if(Object.keys(S.res).length>=20&&Date.now()-lastBk>7*864e5)h+=`<div class="box" style="display:flex;gap:10px;align-items:center"><span style="flex:1">${lastBk?'Faz mais de 7 dias sem backup do seu progresso.':'Você ainda não fez backup do seu progresso.'}</span><button class="chip on" data-m="a">Fazer backup</button></div>`;
   h+=`<p class="mu num">Acertos: ${st.ok} · Erros: ${st.no}${st.ok+st.no?' · '+pct(st.ok,st.ok+st.no)+'%':''}</p>`;
-  if(!Q.length){return h+`<div class="box">${filt==='erros'?'Nenhum erro por aqui. Mandou bem!':'Nenhuma questão neste filtro. Adicione questões na aba Adicionar.'}</div>`}
+  if(filt==='cad')h+=`<p class="note" style="margin:-6px 0 8px">Toda questão que você erra fica guardada aqui, mesmo depois de acertar. As que você mais errou vêm primeiro. Quando dominar uma, toque em “Tirar do caderno”.</p>`;
+  if(!Q.length){return h+`<div class="box">${filt==='erros'?'Nenhum erro por aqui. Mandou bem!':filt==='cad'?'Seu caderno está vazio. Cada questão que você errar entra aqui automaticamente.':'Nenhuma questão neste filtro. Adicione questões na aba Adicionar.'}</div>`}
   const q=byId(Q[i]);
   h+=`<div class="tag">Questão ${i+1} de ${Q.length}${q.tag?' · '+esc(q.tag):''}</div><div class="q">${esc(q.t)}</div>`;
   const opts=q.type==='ce'?[['C','Certo.'],['E','Errado.']]:q.opts.map((o,k)=>['ABCDE'[k],o]);
@@ -206,6 +213,8 @@ function viewP(){
   if(shown){
     const okk=pick===q.ans;
     h+=`<div class="box"><b style="color:var(${okk?'--ok':'--no'})">${okk?'Acertou!':'Errou.'}</b> Gabarito: ${q.ans}${q.com?'\n\n'+esc(q.com):''}</div>`;
+    const e=S.err[q.id];
+    h+=`<div class="row" style="gap:10px"><span class="mu" style="flex:1;min-width:0">${e?`📒 No caderno${e.n?` · você já errou ${e.n}x`:' · guardada por você'}`:'Fora do caderno de erros'}</span><button class="chip${e?'':' on'}" data-cad="${q.id}">${e?'Tirar do caderno':'Guardar no caderno'}</button></div>`;
   }
   h+=`<div class="row" style="margin-top:14px"><button class="btn sec" data-n="-1" ${i===0?'disabled':''}>‹</button>`;
   h+=shown?`<button class="btn" data-n="1">${i<Q.length-1?'Próxima':'Fim · recomeçar'}</button>`:`<button class="btn" id="resp" ${pick?'':'disabled'}>Responder</button>`;
@@ -228,6 +237,9 @@ function viewS(){
   <div class="kv"><div><b>${all.r}</b><span>feitas de ${all.n.toLocaleString('pt-BR')}</span></div><div><b>${pct(all.r,all.n)}%</b><span>do banco feito</span></div>
   <div><b class="g">${all.ok}</b><span>acertos</span></div><div><b class="r">${all.r-all.ok}</b><span>erros</span></div>
   <div><b>${days.length}</b><span>dias de estudo</span></div><div><b>${streak()}</b><span>dias seguidos</span></div></div></div>`;
+  // caderno de erros
+  const nc=Object.keys(S.err).filter(id=>byId(id)).length;
+  h+=`<div class="card" style="display:flex;gap:12px;align-items:center"><div style="flex:1;min-width:0"><div style="font:700 16px/1.3 var(--fd)">📒 Caderno de erros</div><div class="mu">${nc?`${nc} ${nc===1?'questão guardada':'questões guardadas'}, mesmo as que você já acertou depois.`:'Vazio. As questões que você errar entram aqui.'}</div></div>${nc?`<button class="chip on" data-tc="1">Revisar</button>`:''}</div>`;
   // onde mais erra
   const ms=mats();
   const rank=ms.map(m=>({m,...matStats(m)})).filter(s=>s.r>=5).map(s=>({...s,er:s.r-s.ok,pe:100-pct(s.ok,s.r)})).sort((a,b)=>b.pe-a.pe||b.er-a.er);
@@ -277,7 +289,7 @@ function viewS(){
 function viewA(){
   const n=Object.keys(S.res).length;
   return `<h2>Backup do progresso</h2>${msg?`<div class="box">${esc(msg)}</div>`:''}
-  <p class="mu">Seu progresso (${n} respostas e o histórico de dias) fica salvo neste aparelho. Baixe um backup de vez em quando e guarde no Google Drive ou no e-mail. Para usar em outro aparelho, restaure o arquivo lá.</p>
+  <p class="mu">Seu progresso (${n} respostas, o histórico de dias e o caderno de erros) fica salvo neste aparelho. Baixe um backup de vez em quando e guarde no Google Drive ou no e-mail. Para usar em outro aparelho, restaure o arquivo lá.</p>
   <p class="mu">Último backup: <b>${lastBk?new Date(lastBk).toLocaleString('pt-BR'):'nunca'}</b></p>
   <div class="row"><button class="btn" id="bk">Baixar backup</button><label class="btn sec" style="cursor:pointer;margin:0;text-align:center">Restaurar backup<input id="rf" type="file" accept=".json,application/json" hidden></label></div>
   <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="mg" checked style="width:auto;margin:0"> Juntar com o progresso deste aparelho (desmarque para substituir)</label>
@@ -339,16 +351,19 @@ document.addEventListener('click',e=>{
   if(t.dataset.om!==undefined){openM=openM===t.dataset.om?null:t.dataset.om;return render()}
   if(t.dataset.so){sortM=t.dataset.so;return render()}
   if(t.dataset.tr){mat=t.dataset.tr;filt='erros';mode='p';buildQ();render();window.scrollTo(0,0);return}
+  if(t.dataset.tc){mat='todas';filt='cad';mode='p';buildQ();render();window.scrollTo(0,0);return}
   if(t.dataset.od){openD=openD===t.dataset.od?null:t.dataset.od;return render()}
   if(t.dataset.f){filt=t.dataset.f;buildQ();return render()}
   if(t.dataset.p&&!shown){pick=t.dataset.p;return render()}
   if(t.id==='resp'&&pick){
     const q=byId(Q[i]),ok=pick===q.ans,now=Date.now(),k=dayKey(now),m=matOf(q);
     S.res[q.id]={ok,pick,d:now};
+    if(!ok){const e=S.err[q.id]=S.err[q.id]||{n:0,d:0};e.n=(e.n||0)+1;e.d=now}
     const L=S.log[k]=S.log[k]||{n:0,ok:0,m:{}};L.n++;if(ok)L.ok++;L.m[m]=L.m[m]||[0,0];L.m[m][0]++;if(ok)L.m[m][1]++;
     shown=true;save();return render()}
   if(t.dataset.n){const n=i+Number(t.dataset.n);if(n>=Q.length){buildQ()}else if(n>=0){i=n;pick=null;shown=false}return render()}
-  if(t.dataset.d){S.qs=S.qs.filter(q=>q.id!==t.dataset.d);delete S.res[t.dataset.d];save();return render()}
+  if(t.dataset.cad){const id=t.dataset.cad;if(S.err[id])delete S.err[id];else S.err[id]={n:0,d:Date.now()};save();return render()}
+  if(t.dataset.d){S.qs=S.qs.filter(q=>q.id!==t.dataset.d);delete S.res[t.dataset.d];delete S.err[t.dataset.d];save();return render()}
   if(t.id==='rst'){if(!confirmReset){confirmReset=true}else{S.qs.filter(inMat).forEach(q=>delete S.res[q.id]);confirmReset=false;save()}return render()}
 });
 (async function init(){
@@ -356,7 +371,7 @@ document.addEventListener('click',e=>{
   $('#app').innerHTML='<p class="mu">Carregando questões…</p>';
   let base=window.QS_EMBED;
   if(!base){try{base=await (await fetch('questoes.json',{cache:'no-cache'})).json()}catch(e){base=[]}}
-  S={qs:base.slice(),res:{},log:{}};
+  S={qs:base.slice(),res:{},log:{},err:{}};
   let p=null;try{p=JSON.parse(localStorage.getItem(PK)||'null')}catch(e){}
   if(!p){p=window.PROG_EMBED||null;if(!p){try{const r=await fetch('progresso-inicial.json',{cache:'no-cache'});if(r.ok)p=await r.json()}catch(e){}}}
   if(p){try{applyProg(p,false);lastBk=p.bk||0}catch(e){}}
